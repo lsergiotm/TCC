@@ -3,7 +3,9 @@ import pandas as pd
 import plotly.express as px
 from data_processing import load_data
 
+# ---------------------------------------------
 # Carregar os dados processados
+# ---------------------------------------------
 df = load_data()
 
 # Garantir que as colunas de custo e quantidade sejam numéricas
@@ -21,11 +23,62 @@ Explore a evolução dos custos e quantidades de procedimentos ao longo do tempo
 """)
 
 # ---------------------------------------------
+# Filtros Interativos
+# ---------------------------------------------
+st.sidebar.header("Filtros de Dados")
+
+# Filtro por Estado
+estados_disponiveis = ['Todos'] + sorted(df['uf_nome'].dropna().unique().tolist())
+estado_selecionado = st.sidebar.selectbox(
+    "Escolha o estado:",
+    options=estados_disponiveis
+)
+df_filtrado = df.copy()
+if estado_selecionado != 'Todos':
+    df_filtrado = df_filtrado[df_filtrado['uf_nome'] == estado_selecionado]
+
+# Filtro por Município
+municipios_disponiveis = ['Todos'] + sorted(df_filtrado['nome_municipio'].dropna().unique().tolist())
+municipio_selecionado = st.sidebar.selectbox(
+    "Escolha o município:",
+    options=municipios_disponiveis
+)
+if municipio_selecionado != 'Todos':
+    df_filtrado = df_filtrado[df_filtrado['nome_municipio'] == municipio_selecionado]
+
+# Filtro por Ano
+anos_disponiveis = ['Todos'] + sorted(df_filtrado['ano_aih'].dropna().unique().tolist())
+ano_selecionado = st.sidebar.selectbox("Selecione o Ano:", anos_disponiveis)
+if ano_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['ano_aih'] == int(ano_selecionado)]
+
+# Filtro por Mês
+meses = {
+    "Todos": "Todos",
+    "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
+    "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
+    "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+}
+mes_selecionado = st.sidebar.selectbox("Selecione o Mês:", list(meses.keys()))
+if mes_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['mes_aih'] == meses[mes_selecionado]]
+
+# Verificar se há dados após os filtros
+if df_filtrado.empty:
+    st.warning("Nenhum dado encontrado com os filtros aplicados. Ajuste os filtros e tente novamente.")
+    st.stop()
+
+# ---------------------------------------------
+# Análise Temporal
+# ---------------------------------------------
+# Agrupar dados para análises sazonais
+custos_sazonais = df_filtrado.groupby('mes_aih')['Valor total dos procedimentos'].mean().reset_index()
+quantidades_sazonais = df_filtrado.groupby('mes_aih')['Quantidade total de procedimentos'].mean().reset_index()
+
+# ---------------------------------------------
 # Gráfico de Barras - Custos Médios por Mês
 # ---------------------------------------------
 st.subheader("Evolução Mensal de Custos Médios (Barras)")
-
-custos_sazonais = df.groupby('mes_aih')['Valor total dos procedimentos'].mean().reset_index()
 
 fig_barras_custos = px.bar(
     custos_sazonais,
@@ -56,8 +109,6 @@ st.plotly_chart(fig_linha)
 # Gráfico de Área - Quantidades Médias por Mês
 # ---------------------------------------------
 st.subheader("Evolução Mensal de Quantidades Médias (Área)")
-
-quantidades_sazonais = df.groupby('mes_aih')['Quantidade total de procedimentos'].mean().reset_index()
 
 fig_area = px.area(
     quantidades_sazonais,

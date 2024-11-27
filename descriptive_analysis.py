@@ -1,117 +1,112 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from data_processing import load_data, load_rename_mapping
+from data_processing import load_data
 
-# Carregar os dados processados
-df = load_data()
+# ---------------------------------------------
+# Função para carregar e processar os dados
+# ---------------------------------------------
+@st.cache_data
+def load_and_prepare_data():
+    # Carregar os dados
+    df = load_data()
 
-# Carregar o mapeamento de nomes dos procedimentos
-rename_mapping = load_rename_mapping()
+    # Normalizar os nomes das colunas
+    df.columns = (
+        df.columns.str.strip()  # Remover espaços no início e fim
+        .str.replace(" ", "_")  # Substituir espaços por _
+        .str.replace("/", "_")  # Substituir barras por _
+        .str.replace("-", "_")  # Substituir traços por _
+        .str.lower()  # Transformar tudo para minúsculas
+    )
 
-# Título da página
-st.title("Análises Comparativas de Internações")
+    # Selecionar apenas colunas de quantidade total e valor total
+    qtd_cols = [col for col in df.columns if col.startswith("quantidade_")]
+    vl_cols = [col for col in df.columns if col.startswith("valor_")]
+
+    return df, qtd_cols, vl_cols
+
+# ---------------------------------------------
+# Configuração da Página
+# ---------------------------------------------
+st.title("Soma Total dos Procedimentos")
 st.markdown("""
-Nesta página, realizamos comparações de internações hospitalares considerando diferentes variáveis:
-- Frequência por região
-- Frequência por tipo de procedimento
-- Frequência por faixa populacional
-- Mapa de calor baseado na localização geográfica das internações
+Explore as somas totais dos procedimentos hospitalares com base nos dados filtrados.
 """)
 
+# Carregar os dados
+df, qtd_cols, vl_cols = load_and_prepare_data()
+
 # ---------------------------------------------
-# Seção 1: Comparação entre Regiões
+# Filtros Interativos
 # ---------------------------------------------
-st.header("1. Comparação entre Regiões")
+st.sidebar.header("Filtros de Dados")
 
-# Agrupar dados por região
-regiao_data = df.groupby('regiao_nome').size().reset_index(name='Frequência')
-regiao_data = regiao_data.sort_values(by='Frequência', ascending=False)
+# Dropdown para Estado
+estados_disponiveis = ['Todos'] + sorted(df['uf_nome'].dropna().unique().tolist())
+estado_selecionado = st.sidebar.selectbox("Escolha o Estado:", estados_disponiveis)
 
-st.write("Frequência de Internações por Região:")
-st.dataframe(regiao_data)
+# Dropdown para Município
+if estado_selecionado != 'Todos':
+    municipios_disponiveis = ['Todos'] + sorted(df[df['uf_nome'] == estado_selecionado]['nome_municipio'].dropna().unique())
+else:
+    municipios_disponiveis = ['Todos'] + sorted(df['nome_municipio'].dropna().unique())
+municipio_selecionado = st.sidebar.selectbox("Escolha o Município:", municipios_disponiveis)
 
-# Gráfico de barras
-fig_regiao = px.bar(
-    regiao_data,
-    x='regiao_nome',
-    y='Frequência',
-    title="Frequência de Internações por Região",
-    labels={'regiao_nome': 'Região', 'Frequência': 'Número de Internações'},
-)
-st.plotly_chart(fig_regiao)
+# Filtro por ano
+anos_disponiveis = ['Todos'] + sorted(df['ano_aih'].dropna().unique().astype(str).tolist())
+ano_selecionado = st.sidebar.selectbox("Selecione o Ano:", anos_disponiveis)
+
+# Filtro por mês
+meses = {
+    "Todos": "Todos",
+    "Janeiro": "01", "Fevereiro": "02", "Março": "03", "Abril": "04",
+    "Maio": "05", "Junho": "06", "Julho": "07", "Agosto": "08",
+    "Setembro": "09", "Outubro": "10", "Novembro": "11", "Dezembro": "12"
+}
+mes_selecionado = st.sidebar.selectbox("Selecione o Mês:", list(meses.keys()))
+
+# Aplicar filtros
+df_filtrado = df.copy()
+if estado_selecionado != 'Todos':
+    df_filtrado = df_filtrado[df_filtrado['uf_nome'] == estado_selecionado]
+if municipio_selecionado != 'Todos':
+    df_filtrado = df_filtrado[df_filtrado['nome_municipio'] == municipio_selecionado]
+if ano_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['ano_aih'] == int(ano_selecionado)]
+if mes_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['mes_aih'] == int(meses[mes_selecionado])]
+
+# Garantir que existem dados filtrados
+if df_filtrado.empty:
+    st.warning("Nenhum dado encontrado com os filtros aplicados. Ajuste os filtros e tente novamente.")
+    st.stop()
+
 # ---------------------------------------------
-# Seção 2: Frequência por Tipo de Procedimento
+# Soma Total das Colunas de Procedimentos
 # ---------------------------------------------
-st.header("2. Frequência por Tipo de Procedimento")
+st.subheader("Soma Total dos Procedimentos por Quantidade e Valor")
 
-# Selecionar apenas as colunas de procedimentos (baseado nos nomes renomeados)
-procedimento_cols = [col for col in df.columns if col in rename_mapping.values()]
+# Somar as colunas de quantidades e valores
+qtd_totais = df_filtrado[qtd_cols].sum()
+vl_totais = df_filtrado[vl_cols].sum()
 
-# Verificar os dados das colunas de procedimentos
-st.write("Verificando os valores nas colunas de procedimentos:")
-st.write(df[procedimento_cols].head())
-
-# Somar os valores das colunas de procedimentos
-procedimento_data = pd.DataFrame(df[procedimento_cols].sum(), columns=['Frequência']).reset_index()
-procedimento_data.columns = ['Nome do Procedimento', 'Frequência']
-
-# Garantir que a coluna 'Frequência' seja numérica
-procedimento_data['Frequência'] = pd.to_numeric(procedimento_data['Frequência'], errors='coerce')
-
-# Remover linhas com valores inválidos em 'Frequência'
-procedimento_data = procedimento_data.dropna(subset=['Frequência'])
-
-# Converter 'Frequência' para inteiro (se necessário)
-procedimento_data['Frequência'] = procedimento_data['Frequência'].astype(int)
-
-# Filtrar para remover o "Valor total dos procedimentos"
-procedimento_data = procedimento_data[procedimento_data['Nome do Procedimento'] != 'Valor total dos procedimentos']
-
-# Filtrar os 10 procedimentos mais frequentes
-procedimento_data = procedimento_data.sort_values(by='Frequência', ascending=False).head(10)
+# Criar DataFrame para visualização
+totais_df = pd.DataFrame({
+    "Procedimento": qtd_cols + vl_cols,
+    "Soma Total": list(qtd_totais) + list(vl_totais)
+})
 
 # Exibir o DataFrame processado
-st.write("Top 10 Procedimentos com Mais Internações:")
-st.dataframe(procedimento_data)
+st.write("Tabela de Somatórios:")
+st.dataframe(totais_df)
 
 # Gráfico de barras
-fig_procedimento = px.bar(
-    procedimento_data,
-    x='Nome do Procedimento',
-    y='Frequência',
-    title="Frequência por Tipo de Procedimento (Top 10)",
-    labels={'Nome do Procedimento': 'Procedimento', 'Frequência': 'Número de Internações'},
+fig_totais = px.bar(
+    totais_df,
+    x="Procedimento",
+    y="Soma Total",
+    title="Soma Total de Procedimentos por Quantidade e Valor",
+    labels={"Procedimento": "Procedimento", "Soma Total": "Soma Total"},
 )
-st.plotly_chart(fig_procedimento)
-
-# Gráfico de pizza
-fig_pizza = px.pie(
-    procedimento_data,
-    values='Frequência',
-    names='Nome do Procedimento',
-    title="Distribuição de Frequências por Procedimento (Top 10)",
-)
-st.plotly_chart(fig_pizza)
-
-# ---------------------------------------------
-# Seção 3: Frequência por Faixa Populacional
-# ---------------------------------------------
-st.header("3. Frequência por Faixa Populacional")
-
-# Agrupar dados por faixa populacional
-populacao_data = df.groupby('faixa_populacao').size().reset_index(name='Frequência')
-populacao_data = populacao_data.sort_values(by='Frequência', ascending=False)
-
-st.write("Frequência de Internações por Faixa Populacional:")
-st.dataframe(populacao_data)
-
-# Gráfico de barras
-fig_populacao = px.bar(
-    populacao_data,
-    x='faixa_populacao',
-    y='Frequência',
-    title="Frequência de Internações por Faixa Populacional",
-    labels={'faixa_populacao': 'Faixa Populacional', 'Frequência': 'Número de Internações'},
-)
-st.plotly_chart(fig_populacao)
+st.plotly_chart(fig_totais)
