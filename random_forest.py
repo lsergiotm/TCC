@@ -11,148 +11,139 @@ from data_processing import load_data
 # Carregar os dados usando o script data_processing.py
 df = load_data()
 
-# Exibir colunas e prévia dos dados carregados
-st.title("Modelo Random Forest - Previsão de Custos")
-st.subheader("Visualização dos Dados Carregados")
-st.write("Colunas disponíveis no DataFrame:")
-st.write(df.columns.tolist())
-st.write("Prévia dos dados carregados:")
-st.dataframe(df.head())
+# Garantir que as colunas necessárias existam no DataFrame
+df['faixa_populacao'] = pd.to_numeric(df['faixa_populacao'], errors='coerce')
+df['Quantidade total de procedimentos'] = pd.to_numeric(df['Quantidade total de procedimentos'], errors='coerce')
+df['Valor total dos procedimentos'] = pd.to_numeric(df['Valor total dos procedimentos'], errors='coerce')
 
-# Verificar valores nulos e únicos antes de prosseguir
-st.write("Valores únicos por coluna:")
-st.write(df.nunique())
-st.write("Contagem de valores nulos:")
-st.write(df.isnull().sum())
+# Substituir valores nulos
+df.fillna(0, inplace=True)
 
-# Verificar se o dataframe está vazio
+# -------------------------------------------------
+# Filtros de Estado, Município, Ano e Mês
+# -------------------------------------------------
+st.sidebar.header("Filtros de Dados")
+
+# Dropdown para Estados com seleção única
+estados_disponiveis = ['Todos'] + sorted(df['uf_nome'].dropna().unique().tolist())
+estado_selecionado = st.sidebar.selectbox("Escolha o estado:", options=estados_disponiveis)
+
+# Filtrar Estados
+if estado_selecionado != 'Todos':
+    df = df[df['uf_nome'] == estado_selecionado]
+
+# Dropdown para Municípios com seleção única
+municipios_disponiveis = ['Todos'] + sorted(df['nome_municipio'].dropna().unique().tolist())
+municipio_selecionado = st.sidebar.selectbox("Escolha o município:", options=municipios_disponiveis)
+
+# Filtro por Ano
+anos = sorted(df['ano_aih'].unique().tolist())
+anos.insert(0, "Todos")
+ano_selecionado = st.sidebar.selectbox("Escolha o ano:", anos)
+
+# Filtro por Mês
+meses = {
+    "Todos": "Todos",
+    "Janeiro": "01", "Fevereiro": "02", "Março": "03", "Abril": "04",
+    "Maio": "05", "Junho": "06", "Julho": "07", "Agosto": "08",
+    "Setembro": "09", "Outubro": "10", "Novembro": "11", "Dezembro": "12"
+}
+mes_selecionado = st.sidebar.selectbox("Escolha o mês:", list(meses.keys()))
+
+# Aplicar filtros
+if municipio_selecionado != "Todos":
+    df = df[df['nome_municipio'] == municipio_selecionado]
+if ano_selecionado != "Todos":
+    df = df[df['ano_aih'] == int(ano_selecionado)]
+if mes_selecionado != "Todos":
+    df = df[df['mes_aih'] == meses[mes_selecionado]]
+
+# Garantir que existam dados após os filtros
 if df.empty:
-    st.error("O dataframe está vazio após o carregamento. Verifique os dados de entrada.")
+    st.warning("Nenhum dado encontrado com os filtros aplicados. Ajuste os filtros e tente novamente.")
+    st.stop()
+
+# -------------------------------------------------
+# Configurações do Modelo
+# -------------------------------------------------
+st.sidebar.header("Configurações do Modelo")
+n_estimators = st.sidebar.slider("Número de Árvores (n_estimators):", min_value=10, max_value=500, value=100, step=10)
+
+# -------------------------------------------------
+# Treinamento do Modelo
+# -------------------------------------------------
+X = df[['faixa_populacao', 'Quantidade total de procedimentos']]
+y = df['Valor total dos procedimentos']
+
+# Dividir os dados em treino e teste
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Treinar o modelo Random Forest
+model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
+model.fit(X_train, y_train)
+
+# Fazer previsões
+y_pred = model.predict(X_test)
+
+# -------------------------------------------------
+# Avaliação do Modelo
+# -------------------------------------------------
+mae = mean_absolute_error(y_test, y_pred)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+
+# Importância das variáveis
+feature_importances = pd.DataFrame({
+    'Variável': X.columns,
+    'Importância': model.feature_importances_
+}).sort_values(by='Importância', ascending=False)
+
+# Exibição das métricas
+st.subheader("Métricas do Modelo")
+st.write(f"**MAE:** {mae:.2f}")
+st.write(f"**MSE:** {mse:.2f}")
+st.write(f"**RMSE:** {rmse:.2f}")
+st.write(f"**R² Score:** {r2:.2f}")
+
+# Interpretação das métricas
+st.subheader("Interpretação das Métricas")
+if r2 > 0.9:
+    st.success("O modelo apresenta uma excelente capacidade de explicar a variabilidade nos dados.")
+elif r2 > 0.75:
+    st.info("O modelo apresenta uma boa capacidade de explicação, mas ainda há espaço para melhorias.")
 else:
-    # Selecionar e converter colunas relevantes
-    st.write("Processando colunas relevantes...")
-    try:
-        df['faixa_populacao'] = pd.to_numeric(df['faixa_populacao'], errors='coerce')
-        df['Quantidade total de procedimentos'] = pd.to_numeric(df['Quantidade total de procedimentos'], errors='coerce')
-        df['Valor total dos procedimentos'] = pd.to_numeric(df['Valor total dos procedimentos'], errors='coerce')
-    except KeyError:
-        st.error("Algumas colunas necessárias não estão disponíveis no DataFrame.")
+    st.warning("O modelo apresenta baixa capacidade de explicação. Considere ajustar os parâmetros ou utilizar mais dados.")
 
-    # Tratar valores nulos
-    st.write("Substituindo valores nulos por 0...")
-    df.fillna(0, inplace=True)
+# -------------------------------------------------
+# Visualizações
+# -------------------------------------------------
+# Importância das variáveis
+st.subheader("Importância das Variáveis")
+fig_importance = px.bar(
+    feature_importances,
+    x='Importância',
+    y='Variável',
+    orientation='h',
+    title="Importância das Variáveis"
+)
+st.plotly_chart(fig_importance)
 
-    # Remover linhas com valores não numéricos restantes
-    df = df.dropna()
-
-    # Exibir informações após a limpeza
-    st.write("Dados após limpeza e conversão:")
-    st.dataframe(df[['faixa_populacao', 'Quantidade total de procedimentos', 'Valor total dos procedimentos']].head())
-    st.write("Quantidade de valores nulos após a limpeza:")
-    st.write(df[['faixa_populacao', 'Quantidade total de procedimentos', 'Valor total dos procedimentos']].isnull().sum())
-
-    # Verificar se existem dados suficientes para treinamento
-    if df.shape[0] < 10:
-        st.error("Dados insuficientes para treinamento após a limpeza. Verifique os dados de entrada.")
-    else:
-        # Separar os dados em features (X) e target (y)
-        X = df[['faixa_populacao', 'Quantidade total de procedimentos']]
-        y = df['Valor total dos procedimentos']
-
-        # Interface do Streamlit para ajustar parâmetros do modelo
-        st.sidebar.header("Configurações do Modelo")
-        n_estimators = st.sidebar.slider("Número de Árvores (n_estimators):", min_value=10, max_value=500, value=100, step=10)
-
-        # Dividir os dados em treino e teste
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
-        # Treinar o modelo Random Forest
-        model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
-        model.fit(X_train, y_train)
-
-        # Fazer previsões
-        y_pred = model.predict(X_test)
-
-        # Calcular métricas
-        mae = mean_absolute_error(y_test, y_pred)
-        mse = mean_squared_error(y_test, y_pred)
-        rmse = np.sqrt(mse)
-        r2 = r2_score(y_test, y_pred)
-
-        # Importância das variáveis
-        feature_importances = pd.DataFrame({
-            'Variável': X.columns,
-            'Importância': model.feature_importances_
-        }).sort_values(by='Importância', ascending=False)
-
-        # Exibição das métricas
-        st.subheader("Métricas do Modelo")
-        st.write(f"**Mean Absolute Error (MAE):** {mae:.2f}")
-        st.write(f"**Mean Squared Error (MSE):** {mse:.2f}")
-        st.write(f"**Root Mean Squared Error (RMSE):** {rmse:.2f}")
-        st.write(f"**R² Score:** {r2:.2f}")
-
-        # Interpretação das métricas
-        st.subheader("Interpretação das Métricas")
-        if r2 > 0.9:
-            st.success("O modelo apresenta uma excelente capacidade de explicar a variabilidade nos dados.")
-        elif r2 > 0.75:
-            st.info("O modelo apresenta uma boa capacidade de explicação, mas ainda há espaço para melhorias.")
-        else:
-            st.warning("O modelo apresenta baixa capacidade de explicação. Considere ajustar os parâmetros ou utilizar mais dados.")
-
-        st.markdown("""
-        **MAE:** Indica o erro médio absoluto entre os valores previstos e reais. Valores menores são melhores.  
-        **MSE e RMSE:** Medem o erro quadrático médio. RMSE é mais interpretável, sendo na mesma escala dos valores reais.  
-        **R²:** Mede o percentual de variabilidade explicada pelo modelo. Quanto mais próximo de 1, melhor.
-        """)
-
-        # Visualização da importância das variáveis
-        st.subheader("Importância das Variáveis")
-        feature_importances_sorted = feature_importances.sort_values(by="Importância", ascending=True)
-        fig_importance = px.bar(
-            feature_importances_sorted,
-            x='Importância',
-            y='Variável',
-            orientation='h',
-            text='Importância',
-            title="Importância das Variáveis",
-            labels={'Importância': 'Importância', 'Variável': 'Variáveis'},
-            template="plotly_white"
-        )
-        fig_importance.update_traces(
-            marker_color='skyblue',
-            texttemplate='%{text:.2f}',
-            textposition='outside'
-        )
-        st.plotly_chart(fig_importance)
-
-        # Gráfico de comparação entre valores reais e previstos
-        st.subheader("Comparação de Valores Reais vs Previstos")
-        fig_comparison = go.Figure()
-        fig_comparison.add_trace(go.Scatter(
-            x=y_test,
-            y=y_pred,
-            mode='markers',
-            name='Valores',
-            marker=dict(color='blue')
-        ))
-        fig_comparison.add_trace(go.Scatter(
-            x=[y_test.min(), y_test.max()],
-            y=[y_test.min(), y_test.max()],
-            mode='lines',
-            name='Linha Ideal',
-            line=dict(color='red', dash='dot')
-        ))
-        fig_comparison.update_layout(
-            title="Comparação de Valores Reais vs Previstos",
-            xaxis_title="Valor Real (R$)",
-            yaxis_title="Valor Previsto (R$)",
-            showlegend=True
-        )
-        st.plotly_chart(fig_comparison)
-
-        # Exibir dados reais e previstos em tabela
-        st.subheader("Tabela Comparativa de Valores")
-        comparison_df = pd.DataFrame({'Valor Real (R$)': y_test, 'Valor Previsto (R$)': y_pred})
-        st.dataframe(comparison_df)
+# Comparação de valores reais e previstos
+st.subheader("Comparação de Valores Reais vs Previstos")
+fig_comparison = go.Figure()
+fig_comparison.add_trace(go.Scatter(
+    x=y_test,
+    y=y_pred,
+    mode='markers',
+    name='Valores Previstos',
+    marker=dict(color='blue')
+))
+fig_comparison.add_trace(go.Scatter(
+    x=[y_test.min(), y_test.max()],
+    y=[y_test.min(), y_test.max()],
+    mode='lines',
+    name='Linha Ideal',
+    line=dict(color='red', dash='dot')
+))
+st.plotly_chart(fig_comparison)
