@@ -1,0 +1,12 @@
+streamlit
+pandas
+plotly
+asyncpg
+folium
+streamlit_folium
+patlib
+numpy
+cmdstanpy
+prophet
+statsmodels
+scikit-learn
