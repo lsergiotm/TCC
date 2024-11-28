@@ -10,3 +10,4 @@ cmdstanpy
 prophet
 statsmodels
 scikit-learn
+babel
