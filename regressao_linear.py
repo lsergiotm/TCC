@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
+from scipy.stats import t
+from statsmodels.stats.stattools import durbin_watson
+
 from data_processing import load_data
 
 # Carregar os dados processados
@@ -17,7 +21,7 @@ df['Quantidade total de procedimentos'] = pd.to_numeric(
 ).fillna(0)
 
 # Título da página
-st.title("Análise Temporal e Sazonal com Regressão Linear")
+st.title("Análise com Regressão Linear")
 st.markdown("""
 Explore a evolução dos custos e quantidades de procedimentos ao longo do tempo e utilize a regressão linear para prever relações entre os custos e quantidades.
 """)
@@ -70,14 +74,14 @@ if mes_selecionado != 'Todos':
 # ---------------------------------------------
 st.subheader("Regressão Linear - Custos Médios vs Quantidades Médias")
 
-# Agrupar dados por mês para custos e quantidades
 if not df.empty:
+    # Agrupar dados por mês
     regression_data = df.groupby('mes_aih').agg({
         'Valor total dos procedimentos': 'mean',
         'Quantidade total de procedimentos': 'mean'
     }).reset_index()
 
-    # Renomear as colunas para facilitar a visualização
+    # Renomear as colunas
     regression_data.rename(columns={
         'Valor total dos procedimentos': 'Custo Médio',
         'Quantidade total de procedimentos': 'Quantidade Média'
@@ -89,21 +93,53 @@ if not df.empty:
     model = LinearRegression()
     model.fit(X, y)
 
-    # Obter coeficientes e intercepto
+    # Coeficientes
     slope = model.coef_[0]
     intercept = model.intercept_
     r2 = r2_score(y, model.predict(X))
+    residuals = y - model.predict(X)
+    mse = mean_squared_error(y, model.predict(X))
 
-    # Exibir a equação da regressão linear
-    st.latex(f"Custo = {slope:.2f} \\times Quantidade + {intercept:.2f}")
-    st.write(f"**Coeficiente de Determinação (R²): {r2:.2f}**")
+    # Durbin-Watson para erros não correlacionados
+    dw_stat = durbin_watson(residuals)
+
+    # Intervalo de confiança para previsões
+    n = len(y)
+    alpha = 0.05  # Nível de significância
+    t_critical = t.ppf(1 - alpha / 2, df=n - 2)
+    interval = t_critical * np.sqrt(mse * (1 / n + (X - np.mean(X)) ** 2 / np.sum((X - np.mean(X)) ** 2)))
+
+    # Tabela de Avaliação dos Pressupostos
+    pressupostos_data = {
+        "Critério": [
+            "Homocedasticidade",
+            "Linearidade",
+            "Normalidade dos Resíduos",
+            "Erros Não Correlacionados (Durbin-Watson)",
+            "Significância dos Coeficientes (Teste T)"
+        ],
+        "Descrição": [
+            "Os resíduos devem ter variância constante ao longo do intervalo de valores previstos.",
+            "A relação entre as variáveis deve ser linear.",
+            "Os resíduos devem seguir uma distribuição normal.",
+            f"Valores próximos de 2 indicam que os resíduos não são correlacionados. Durbin-Watson: {dw_stat:.2f}",
+            "Coeficientes significativos têm p-valor menor que 0.05."
+        ],
+        "Avaliação": [
+            "Atende" if mse < 0.5 else "Não Atende",
+            "Atende" if r2 > 0.8 else "Não Atende",
+            "Avaliação adicional necessária",
+            "Atende" if 1.5 < dw_stat < 2.5 else "Não Atende",
+            "Avaliação adicional necessária"
+        ]
+    }
+    pressupostos_df = pd.DataFrame(pressupostos_data)
+    st.subheader("Avaliação dos Pressupostos do Modelo")
+    st.table(pressupostos_df)
 
     # ---------------------------------------------
-    # Visualização da Regressão Linear
+    # Visualização
     # ---------------------------------------------
-    st.subheader("Visualização da Regressão Linear")
-
-    # Adicionar a linha de regressão aos dados
     regression_data['Custo Previsto'] = model.predict(X)
 
     fig_regressao = go.Figure()
@@ -130,55 +166,15 @@ if not df.empty:
     st.plotly_chart(fig_regressao)
 
     # ---------------------------------------------
-    # Previsões Baseadas no Modelo
+    # Conclusão da Avaliação do Modelo
     # ---------------------------------------------
-    st.subheader("Previsões Baseadas na Regressão")
-
-    # Intervalo observado nos dados
-    min_quantidade = regression_data['Quantidade Média'].min()
-    max_quantidade = regression_data['Quantidade Média'].max()
-
-    # Entrada do usuário para novas quantidades
-    nova_quantidade = st.number_input(
-        "Insira uma nova quantidade média para prever o custo médio (R$):",
-        min_value=0, step=100
-    )
-
-    # Fazer a previsão
-    if nova_quantidade > 0:
-        if min_quantidade <= nova_quantidade <= max_quantidade:
-            previsao = model.predict([[nova_quantidade]])
-            st.write(f"**Para uma quantidade média de {nova_quantidade}, o custo médio previsto é: R$ {previsao[0]:,.2f}**")
-        else:
-            st.warning(f"A quantidade inserida ({nova_quantidade}) está fora do intervalo observado nos dados ({min_quantidade:.0f} a {max_quantidade:.0f}). "
-                       f"As previsões podem não ser confiáveis.")
-
-    # ---------------------------------------------
-    # Avaliação do Modelo
-    # ---------------------------------------------
-    st.subheader("Avaliação do Modelo")
-
-    # Análise baseada no coeficiente R²
-    if r2 > 0.8:
-        st.success("O modelo apresenta um **ótimo desempenho**!")
-        st.write("""
-        O coeficiente de determinação (R²) indica que a maioria da variabilidade nos custos médios 
-        é explicada pela quantidade média de procedimentos. O modelo pode ser usado para previsões confiáveis.
-        """)
-    elif 0.5 < r2 <= 0.8:
-        st.info("O modelo apresenta um **desempenho razoável**.")
-        st.write("""
-        O coeficiente de determinação (R²) mostra que parte significativa da variabilidade nos custos 
-        é explicada pela quantidade média de procedimentos, mas outros fatores não considerados podem estar impactando o modelo.
-        Considere adicionar mais variáveis (exemplo: região, tipo de procedimento) para melhorar o desempenho.
-        """)
+    st.subheader("Conclusão do Modelo")
+    if r2 > 0.8 and 1.5 < dw_stat < 2.5 and mse < 0.5:
+        st.success("A regressão linear apresenta um ótimo desempenho com base nos pressupostos.")
+    elif r2 > 0.5:
+        st.info("A regressão linear apresenta desempenho moderado. Alguns pressupostos podem não ser totalmente atendidos.")
     else:
-        st.warning("O modelo apresenta um **desempenho fraco**.")
-        st.write("""
-        O coeficiente de determinação (R²) indica que o modelo explica pouco da variabilidade nos custos médios. 
-        Isso pode ocorrer devido à ausência de variáveis importantes ou pela relação não ser linear.
-        Considere revisar os dados ou aplicar um modelo mais robusto, como regressão polinomial ou aprendizado de máquina.
-        """)
+        st.warning("A regressão linear apresenta desempenho fraco. Considere ajustar os dados ou o modelo.")
 
 else:
     st.error("Não há dados suficientes para realizar a análise. Verifique os filtros selecionados.")

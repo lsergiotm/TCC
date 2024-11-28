@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from data_processing import load_data
+import locale
+
+# Configurar a formatação para Real
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 # ---------------------------------------------
 # Carregar os dados processados
@@ -88,6 +92,11 @@ if valor_cols:
 
     # Ordenar pelos maiores valores
     custos_totais = custos_totais.sort_values(by="Valor Total (R$)", ascending=False)
+
+    # Formatar os valores como moeda
+    custos_totais["Valor Total (R$)"] = custos_totais["Valor Total (R$)"].apply(
+        lambda x: locale.currency(x, grouping=True)
+    )
 
     # Exibir tabela
     st.write("Top Procedimentos por Valor Total:")

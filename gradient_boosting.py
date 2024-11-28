@@ -5,6 +5,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import OneHotEncoder
+import matplotlib.pyplot as plt
 
 # Carregar os dados
 from data_processing import load_data
@@ -12,6 +13,11 @@ df = load_data()
 
 # Visualizar os dados carregados
 st.title("Diagnóstico e Melhoria do Modelo - Gradient Boosting")
+st.markdown("""
+Este modelo utiliza o **Gradient Boosting Regressor** para prever o **valor total dos procedimentos** com base nas variáveis disponíveis no conjunto de dados. 
+A análise inclui filtros de dados, avaliação de métricas do modelo, importância das variáveis e comparação de valores reais com previstos.
+""")
+
 st.subheader("Visualização dos Dados Carregados")
 st.write("Colunas disponíveis no DataFrame:")
 st.write(df.columns.tolist())
@@ -55,10 +61,10 @@ mes_selecionado = st.sidebar.selectbox("Escolha o mês:", list(meses.keys()))
 
 # Filtrar os dados
 df_filtrado = df.copy()
-if 'Todos' not in estado_selecionado:
-    df_filtrado = df_filtrado[df_filtrado['uf_nome'].isin(estado_selecionado)]
-if 'Todos' not in municipio_selecionado:
-    df_filtrado = df_filtrado[df_filtrado['nome_municipio'].isin(municipio_selecionado)]
+if estado_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['uf_nome'] == estado_selecionado]
+if municipio_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['nome_municipio'] == municipio_selecionado]
 if ano_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado['ano_aih'] == int(ano_selecionado)]
 if mes_selecionado != "Todos":
@@ -81,7 +87,7 @@ if not target_column_name:
     st.error("Não foi possível localizar a coluna de 'Valor total dos procedimentos' nos dados filtrados.")
     st.stop()
 
-st.write(f"Coluna de target identificada: {target_column_name}")
+st.write(f"Coluna de target identificada: **{target_column_name}**")
 
 # -------------------------------------------------
 # Codificação de Colunas Categóricas
@@ -102,6 +108,10 @@ df_filtrado = df_filtrado.select_dtypes(include=['int64', 'float64'])
 # Configuração do Modelo Gradient Boosting
 # -------------------------------------------------
 st.subheader("Treinamento do Modelo")
+st.markdown("""
+O **Gradient Boosting Regressor** é um modelo baseado em árvores de decisão, ideal para prever valores numéricos em problemas complexos.
+Este modelo aprende iterativamente, reduzindo erros em cada etapa.
+""")
 n_estimators = st.slider("Número de Estimadores (n_estimators):", min_value=10, max_value=500, value=100, step=10)
 learning_rate = st.slider("Taxa de Aprendizado (learning_rate):", min_value=0.01, max_value=0.5, value=0.1, step=0.01)
 
@@ -126,20 +136,43 @@ y_pred = model.predict(X_test)
 # Avaliação do Modelo
 # -------------------------------------------------
 st.subheader("Avaliação do Modelo")
+st.markdown("""
+As métricas abaixo avaliam o desempenho do modelo:
+- **MAE**: Mostra o erro absoluto médio entre os valores reais e previstos.
+- **RMSE**: Penaliza mais erros grandes, fornecendo uma visão geral da precisão.
+- **R²**: Mede a proporção da variância explicada pelo modelo. Quanto mais próximo de 1, melhor o ajuste.
+""")
+
 mae = mean_absolute_error(y_test, y_pred)
 mse = mean_squared_error(y_test, y_pred)
 rmse = np.sqrt(mse)
 r2 = r2_score(y_test, y_pred)
 
-st.write(f"**Mean Absolute Error (MAE):** {mae:.2f}")
-st.write(f"**Mean Squared Error (MSE):** {mse:.2f}")
-st.write(f"**Root Mean Squared Error (RMSE):** {rmse:.2f}")
+st.write(f"**Erro Absoluto Médio (MAE):** R$ {mae:,.2f}")
+st.write(f"**Erro Quadrático Médio (MSE):** R$ {mse:,.2f}")
+st.write(f"**Raiz do Erro Quadrático Médio (RMSE):** R$ {rmse:,.2f}")
 st.write(f"**R² Score:** {r2:.2f}")
+
+# -------------------------------------------------
+# Gráfico de Comparação
+# -------------------------------------------------
+st.subheader("Gráfico de Comparação: Valores Reais vs Previstos")
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.scatter(y_test, y_pred, alpha=0.7, edgecolor='k')
+ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+ax.set_xlabel('Valores Reais (R$)')
+ax.set_ylabel('Valores Previstos (R$)')
+ax.set_title('Comparação entre Valores Reais e Previstos')
+st.pyplot(fig)
 
 # -------------------------------------------------
 # Importância das Variáveis
 # -------------------------------------------------
 st.subheader("Importância das Variáveis")
+st.markdown("""
+A importância das variáveis indica quais fatores têm maior influência no modelo.
+Isso é útil para identificar quais características devem ser priorizadas ou monitoradas.
+""")
 feature_importances = pd.DataFrame({
     'Variável': X.columns,
     'Importância': model.feature_importances_
@@ -147,8 +180,12 @@ feature_importances = pd.DataFrame({
 st.dataframe(feature_importances)
 
 # -------------------------------------------------
-# Gráfico de Comparação
+# Interpretação Final
 # -------------------------------------------------
-st.subheader("Comparação de Valores Reais vs Previstos")
-comparison_df = pd.DataFrame({'Valor Real (R$)': y_test, 'Valor Previsto (R$)': y_pred})
-st.dataframe(comparison_df)
+st.subheader("Interpretação Final do Modelo")
+if r2 > 0.75 and rmse < mae * 1.2:
+    st.success("O modelo apresenta um desempenho sólido, com bom ajuste aos dados!")
+elif r2 > 0.5:
+    st.warning("O modelo apresenta desempenho moderado.")
+else:
+    st.error("O modelo apresenta desempenho fraco.")

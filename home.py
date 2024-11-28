@@ -54,7 +54,7 @@ st.markdown('<h1 class="main-title">Bem-vindo ao Sistema de Análise de Interna�
 st.markdown('<p class="sub-title">Escolha uma análise para explorar os dados sobre internações hospitalares na RIDE de Brasília.</p>', unsafe_allow_html=True)
 
 # Botões organizados
-col1, col2 ,col3 = st.columns(3)
+col1, col2 ,col3, col4 = st.columns(4)
 
 # Definir os redirecionamentos
 if col1.button("📊 Análise Descritiva e Estatística"):
@@ -66,44 +66,58 @@ if col2.button("💰 Análise de Custos"):
 if col3.button("📅 Análise Temporal e Sazonal"):
     st.session_state["current_page"] = "temporal_analysis"
 
-col4,col5, col6 = st.columns(3)
-
 if col4.button("🗺️ Distribuição Geográfica"):
     st.session_state["current_page"] = "geographic_distribution"
 
-if col5.button("📈 Regressão Linear"):
+col5,col6, col7, col8 = st.columns(4)
+
+if col5.button("📅 Modelo de Série Temporal - MST"):
+    st.session_state["current_page"] = "modelo_serie_temporal"
+
+if col6.button("📈 Regressão Linear"):
     st.session_state["current_page"] = "regressao_linear"
 
-if col6.button("📊 Método K-Means"):
+if col7.button("📊 Método K-Means"):
     st.session_state["current_page"] = "k_means"
 
-col7, col8,col9 = st.columns(3)
-
-if col7.button("💡 Gradient Boosting"):
+if col8.button("💡 Gradient Boosting"):
     st.session_state["current_page"] = "gradient_boosting"
+
+col9, col10 ,col11,col12 = st.columns(4)
     
-if col8.button("🌲 Random Forest"):
+if col9.button("🌲 Random Forest"):
     st.session_state["current_page"] = "random_forest"
 
-if col9.button("🔍 Visualização de Dados"):
+if col10.button("🔍 Visualização de Dados"):
     st.session_state["current_page"] = "visualizacao"
 
 # Redirecionar para a página correspondente
 if st.session_state["current_page"] == "descriptive_analysis":
     exec(open("descriptive_analysis.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "cost_analysis":
     exec(open("cost_analysis.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "temporal_analysis":
     exec(open("temporal_analysis.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "geographic_distribution":
     exec(open("geographic_distribution.py", encoding="utf-8").read())
+
+elif st.session_state["current_page"] == "modelo_serie_temporal":
+    exec(open("modelo_serie_temporal.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "regressao_linear":
     exec(open("regressao_linear.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "k_means":
     exec(open("k_means.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "random_forest":
     exec(open("random_forest.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "gradient_boosting":
     exec(open("gradient_boosting.py", encoding="utf-8").read())
+
 elif st.session_state["current_page"] == "visualizacao":
     exec(open("visualizacao.py", encoding="utf-8").read())

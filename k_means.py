@@ -34,6 +34,8 @@ estado_selecionado = st.sidebar.selectbox(
 # Filtrar Estados
 if estado_selecionado != 'Todos':
     df = df[df['uf_nome'] == estado_selecionado]
+    if estado_selecionado == "Distrito Federal":
+        st.info("O Distrito Federal só possui um município (Brasília).")
 
 # Dropdown para Municípios com seleção única e opção "Todos"
 municipios_disponiveis = ['Todos'] + sorted(df['nome_municipio'].dropna().unique().tolist())
@@ -106,6 +108,28 @@ metrics_df = pd.DataFrame({
 st.table(metrics_df)
 
 # -------------------------------------------------
+# Visualização dos Clusters
+# -------------------------------------------------
+st.subheader("Visualização dos Clusters")
+fig = px.scatter_3d(
+    df,
+    x='faixa_populacao',
+    y='Valor total dos procedimentos',
+    z='Quantidade total de procedimentos',
+    color='Cluster',
+    text='nome_municipio',  # Exibir o nome do município no hover
+    title="Clusters com Base em Características Selecionadas",
+    labels={
+        'faixa_populacao': 'Faixa Populacional',
+        'Valor total dos procedimentos': 'Custo Total (R$)',
+        'Quantidade total de procedimentos': 'Quantidade Total',
+        'Cluster': 'Cluster'
+    }
+)
+fig.update_traces(marker=dict(size=6), selector=dict(mode='markers'))
+st.plotly_chart(fig)
+
+# -------------------------------------------------
 # Interpretação dos Resultados
 # -------------------------------------------------
 st.subheader("Interpretação dos Resultados")
@@ -117,21 +141,8 @@ else:
     st.error("O modelo apresenta clusters fracos. Ajustes são necessários.")
 
 # -------------------------------------------------
-# Visualização dos Clusters
+# Tabela de Clusters e Municípios
 # -------------------------------------------------
-st.subheader("Visualização dos Clusters")
-fig = px.scatter_3d(
-    df,
-    x='faixa_populacao',
-    y='Valor total dos procedimentos',
-    z='Quantidade total de procedimentos',
-    color='Cluster',
-    title="Clusters com Base em Características Selecionadas",
-    labels={
-        'faixa_populacao': 'Faixa Populacional',
-        'Valor total dos procedimentos': 'Custo Total (R$)',
-        'Quantidade total de procedimentos': 'Quantidade Total',
-        'Cluster': 'Cluster'
-    }
-)
-st.plotly_chart(fig)
+st.subheader("Tabela de Clusters e Municípios")
+cluster_table = df[['nome_municipio', 'uf_nome', 'Cluster']].sort_values(by='Cluster')
+st.table(cluster_table)
