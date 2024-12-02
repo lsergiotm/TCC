@@ -54,42 +54,42 @@ st.markdown('<h1 class="main-title">Bem-vindo ao Sistema de Análise de Interna�
 st.markdown('<p class="sub-title">Escolha uma análise para explorar os dados sobre internações hospitalares na RIDE de Brasília.</p>', unsafe_allow_html=True)
 
 # Botões organizados
-col1, col2 ,col3, col4 = st.columns(4)
+col1, col2 ,col3, col4,col5 = st.columns(5)
 
 # Definir os redirecionamentos
 if col1.button("📊 Análise Descritiva e Estatística"):
     st.session_state["current_page"] = "descriptive_analysis"
 
-if col2.button("💰 Análise de Custos"):
+if col2.button("🔍 Visualização de Dados"):
+    st.session_state["current_page"] = "visualizacao"    
+
+if col3.button("💰 Análise de Custos"):
     st.session_state["current_page"] = "cost_analysis"
 
-if col3.button("📅 Análise Temporal e Sazonal"):
+if col4.button("📅 Análise Temporal e Sazonal"):
     st.session_state["current_page"] = "temporal_analysis"
 
-if col4.button("🗺️ Distribuição Geográfica"):
+if col5.button("🗺️ Distribuição Geográfica"):
     st.session_state["current_page"] = "geographic_distribution"
 
-col5,col6, col7, col8 = st.columns(4)
+st.markdown('<p class="sub-title">Escolha uma modelagem para explorar os dados sobre internações hospitalares na RIDE de Brasília.</p>', unsafe_allow_html=True)
 
-if col5.button("📅 Modelo de Série Temporal - MST"):
+col6,col7, col8, col9, col10 = st.columns(5)
+
+if col6.button("📅 Modelo de Série Temporal - MST"):
     st.session_state["current_page"] = "modelo_serie_temporal"
-
-if col6.button("📈 Regressão Linear"):
-    st.session_state["current_page"] = "regressao_linear"
 
 if col7.button("📊 Método K-Means"):
     st.session_state["current_page"] = "k_means"
 
-if col8.button("💡 Gradient Boosting"):
+if col8.button("📈 Regressão Linear"):
+    st.session_state["current_page"] = "regressao_linear"
+
+if col9.button("💡 Gradient Boosting"):
     st.session_state["current_page"] = "gradient_boosting"
 
-col9, col10 ,col11,col12 = st.columns(4)
-    
-if col9.button("🌲 Random Forest"):
+if col10.button("🌲 Random Forest"):
     st.session_state["current_page"] = "random_forest"
-
-if col10.button("🔍 Visualização de Dados"):
-    st.session_state["current_page"] = "visualizacao"
 
 # Redirecionar para a página correspondente
 if st.session_state["current_page"] == "descriptive_analysis":

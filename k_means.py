@@ -9,6 +9,11 @@ from data_processing import load_data
 
 df = load_data()
 
+# Garantir que a coluna 'ano_aih' seja numérica e válida
+df['ano_aih'] = pd.to_numeric(df['ano_aih'], errors='coerce')
+df = df[df['ano_aih'].notna()]  # Remove valores NaN
+df['ano_aih'] = df['ano_aih'].astype(int)  # Converte para inteiro
+
 # Garantir que as colunas necessárias existam no DataFrame
 numeric_columns = ['faixa_populacao', 'Valor total dos procedimentos', 'Quantidade total de procedimentos']
 df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='coerce').fillna(0)
@@ -44,28 +49,13 @@ municipio_selecionado = st.sidebar.selectbox(
     options=municipios_disponiveis
 )
 
-# Filtro por Ano
-anos = df['ano_aih'].unique().tolist()
-anos.sort()
-anos.insert(0, "Todos")
-ano_selecionado = st.sidebar.selectbox("Escolha o ano:", anos, index=0)
-
-# Filtro por Mês
-meses = {
-    "Todos": "Todos",
-    "Janeiro": "01", "Fevereiro": "02", "Março": "03", "Abril": "04",
-    "Maio": "05", "Junho": "06", "Julho": "07", "Agosto": "08",
-    "Setembro": "09", "Outubro": "10", "Novembro": "11", "Dezembro": "12"
-}
-mes_selecionado = st.sidebar.selectbox("Escolha o mês:", list(meses.keys()), index=0)
+# Filtro por ano
+anos_disponiveis = ['Todos'] + sorted(df['ano_aih'].dropna().unique().astype(str).tolist())
+ano_selecionado = st.sidebar.selectbox("Selecione o Ano:", anos_disponiveis)
 
 # Filtrar Ano
 if ano_selecionado != "Todos":
     df = df[df['ano_aih'] == int(ano_selecionado)]
-
-# Filtrar Mês
-if mes_selecionado != "Todos":
-    df = df[df['mes_aih'] == meses[mes_selecionado]]
 
 # Garantir que existam dados após os filtros
 if df.empty:

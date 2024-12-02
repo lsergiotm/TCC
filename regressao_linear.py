@@ -12,6 +12,11 @@ from data_processing import load_data
 # Carregar os dados processados
 df = load_data()
 
+# Garantir que a coluna 'ano_aih' seja numérica e válida
+df['ano_aih'] = pd.to_numeric(df['ano_aih'], errors='coerce')
+df = df[df['ano_aih'].notna()]  # Remove valores NaN
+df['ano_aih'] = df['ano_aih'].astype(int)  # Converte para inteiro
+
 # Garantir que as colunas de custo e quantidade sejam numéricas
 df['Valor total dos procedimentos'] = pd.to_numeric(
     df['Valor total dos procedimentos'], errors='coerce'
@@ -49,25 +54,13 @@ municipio_selecionado = st.sidebar.selectbox(
     options=municipios_disponiveis
 )
 
-# Filtro de Ano
-anos = list(df['ano_aih'].unique())
-ano_selecionado = st.sidebar.selectbox("Escolha o ano:", ['Todos'] + anos)
+# Filtro por ano
+anos_disponiveis = ['Todos'] + sorted(df['ano_aih'].dropna().unique().astype(str).tolist())
+ano_selecionado = st.sidebar.selectbox("Selecione o Ano:", anos_disponiveis)
 
 # Filtrar por ano
 if ano_selecionado != 'Todos':
     df = df[df['ano_aih'] == ano_selecionado]
-
-# Filtro de Mês
-meses = {
-    1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho",
-    7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"
-}
-mes_selecionado = st.sidebar.selectbox("Escolha o mês:", ['Todos'] + list(meses.values()))
-
-# Filtrar por mês
-if mes_selecionado != 'Todos':
-    mes_numero = list(meses.keys())[list(meses.values()).index(mes_selecionado)]
-    df = df[df['mes_aih'] == mes_numero]
 
 # ---------------------------------------------
 # Regressão Linear - Preparação dos Dados

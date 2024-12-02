@@ -11,6 +11,11 @@ import matplotlib.pyplot as plt
 from data_processing import load_data
 df = load_data()
 
+# Garantir que a coluna 'ano_aih' seja numérica e válida
+df['ano_aih'] = pd.to_numeric(df['ano_aih'], errors='coerce')
+df = df[df['ano_aih'].notna()]  # Remove valores NaN
+df['ano_aih'] = df['ano_aih'].astype(int)  # Converte para inteiro
+
 # Visualizar os dados carregados
 st.title("Diagnóstico e Melhoria do Modelo - Gradient Boosting")
 st.markdown("""
@@ -47,17 +52,8 @@ municipio_selecionado = st.sidebar.selectbox(
 )
 
 # Filtro por ano
-anos = ['Todos'] + sorted(df['ano_aih'].dropna().unique().astype(str).tolist())
-ano_selecionado = st.sidebar.selectbox("Escolha o ano:", anos)
-
-# Filtro por mês
-meses = {
-    "Todos": "Todos",
-    "Janeiro": "01", "Fevereiro": "02", "Março": "03", "Abril": "04",
-    "Maio": "05", "Junho": "06", "Julho": "07", "Agosto": "08",
-    "Setembro": "09", "Outubro": "10", "Novembro": "11", "Dezembro": "12"
-}
-mes_selecionado = st.sidebar.selectbox("Escolha o mês:", list(meses.keys()))
+anos_disponiveis = ['Todos'] + sorted(df['ano_aih'].dropna().unique().astype(str).tolist())
+ano_selecionado = st.sidebar.selectbox("Selecione o Ano:", anos_disponiveis)
 
 # Filtrar os dados
 df_filtrado = df.copy()
@@ -67,9 +63,6 @@ if municipio_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado['nome_municipio'] == municipio_selecionado]
 if ano_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado['ano_aih'] == int(ano_selecionado)]
-if mes_selecionado != "Todos":
-    df_filtrado = df_filtrado[df_filtrado['mes_aih'] == int(meses[mes_selecionado])]
-
 if df_filtrado.empty:
     st.error("Nenhum dado encontrado com os filtros aplicados. Ajuste os filtros e tente novamente.")
     st.stop()
