@@ -6,6 +6,7 @@ from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from babel.numbers import format_currency
 from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.seasonal import seasonal_decompose
 
 # Função para formatar valores no padrão brasileiro
 def formatar_real(valor):
@@ -112,8 +113,54 @@ df_grouped_display['Quantidade total de procedimentos'] = df_grouped_display['Qu
 st.dataframe(df_grouped_display)
 
 # Divisão entre treino (2019-2023) e teste (2024-2025)
-train = df_grouped[df_grouped['ano_aih'] <= 2023]
+train = df_grouped[df_grouped['ano_aih'] <= 2023].copy()
+train['ano_aih'] = pd.to_datetime(train['ano_aih'], format='%Y')
 test = pd.DataFrame({'ano_aih': [2024, 2025]})
+
+# ---------------------------------------------
+# Decomposição da Série Temporal
+# ---------------------------------------------
+
+# Decomposição da Série Temporal
+serie_temporal = train.set_index('ano_aih')['Valor total dos procedimentos']
+result = seasonal_decompose(serie_temporal, model='additive', period=1, extrapolate_trend='freq')
+
+# Gráficos de decomposição
+st.header("Decomposição da Série Temporal")
+
+fig, axs = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
+
+# Série Original
+axs[0].plot(result.observed, color="blue", label="Original")
+axs[0].set_title("Série Original")
+axs[0].set_ylabel("Valores (R$)")
+axs[0].legend()
+
+# Tendência
+axs[1].plot(result.trend, color="orange", label="Tendência")
+axs[1].set_title("Tendência")
+axs[1].set_ylabel("Valores (R$)")
+axs[1].legend()
+
+# Sazonalidade
+axs[2].plot(result.seasonal, color="green", label="Sazonalidade")
+axs[2].set_title("Sazonalidade")
+axs[2].set_ylabel("Variação Relativa")
+axs[2].legend()
+
+# Resíduos
+axs[3].plot(result.resid, color="red", label="Resíduo")
+axs[3].set_title("Resíduo")
+axs[3].set_xlabel("Ano")
+axs[3].set_ylabel("Erro ou Desvio")
+axs[3].legend()
+
+# Ajustar os rótulos do eixo X para mostrar os anos
+axs[3].set_xticks(result.observed.index)
+axs[3].set_xticklabels(result.observed.index.year, rotation=45)
+
+plt.tight_layout()
+st.pyplot(fig)
 
 # ---------------------------------------------
 # Modelo ARIMA para Custos
@@ -306,62 +353,3 @@ test_display['Previsão Quantidades (SARIMA)'] = test_display['Previsão Quantid
 
 # Exibir tabela com previsões
 st.table(test_display)
-
-# ---------------------------------------------
-# Gráfico Mensal para SARIMA
-# ---------------------------------------------
-st.header("Previsão Mensal com SARIMA para os Últimos Meses de 2024 e Todo 2025")
-
-# Gerar as datas mensais
-meses_2024_2025 = pd.date_range(start="2024-10", end="2025-12", freq="M")
-df_mensal_sarima = pd.DataFrame({'data': meses_2024_2025})
-df_mensal_sarima['ano'] = df_mensal_sarima['data'].dt.year
-df_mensal_sarima['mes'] = df_mensal_sarima['data'].dt.month
-
-# Dividir os valores previstos igualmente entre os meses de cada ano
-if 'Previsão Custos (SARIMA)' in test and 'Previsão Quantidades (SARIMA)' in test:
-    previsao_custos_2024_sarima = test.loc[test['ano_aih'] == 2024, 'Previsão Custos (SARIMA)'].iloc[0]
-    previsao_quantidades_2024_sarima = test.loc[test['ano_aih'] == 2024, 'Previsão Quantidades (SARIMA)'].iloc[0]
-
-    previsao_custos_2025_sarima = test.loc[test['ano_aih'] == 2025, 'Previsão Custos (SARIMA)'].iloc[0]
-    previsao_quantidades_2025_sarima = test.loc[test['ano_aih'] == 2025, 'Previsão Quantidades (SARIMA)'].iloc[0]
-
-    # Criar previsões mensais
-    df_mensal_sarima['Previsão Custos (Mensal - SARIMA)'] = np.where(
-        df_mensal_sarima['ano'] == 2024,
-        previsao_custos_2024_sarima / 3,
-        previsao_custos_2025_sarima / 12
-    )
-
-    df_mensal_sarima['Previsão Quantidades (Mensal - SARIMA)'] = np.where(
-        df_mensal_sarima['ano'] == 2024,
-        previsao_quantidades_2024_sarima / 3,
-        previsao_quantidades_2025_sarima / 12
-    )
-
-    # Ajuste do Eixo X para Gráficos
-    df_mensal_sarima['data'] = pd.to_datetime(df_mensal_sarima['data'])
-
-    # Gráficos
-    fig_sarima, axs_sarima = plt.subplots(2, 1, figsize=(12, 10))
-
-    # Gráfico de Custos Mensais
-    axs_sarima[0].plot(df_mensal_sarima['data'], df_mensal_sarima['Previsão Custos (Mensal - SARIMA)'], label="Previsão Mensal (Custos)", color="orange")
-    axs_sarima[0].set_title("Previsão Mensal de Custos com SARIMA - Últimos Meses de 2024 e Todo 2025")
-    axs_sarima[0].set_xlabel("Mês")
-    axs_sarima[0].set_ylabel("Valor Total (R$)")
-    axs_sarima[0].tick_params(axis="x", rotation=45)
-    axs_sarima[0].legend()
-
-    # Gráfico de Quantidades Mensais
-    axs_sarima[1].plot(df_mensal_sarima['data'], df_mensal_sarima['Previsão Quantidades (Mensal - SARIMA)'], label="Previsão Mensal (Quantidades)", color="green")
-    axs_sarima[1].set_title("Previsão Mensal de Quantidades com SARIMA - Últimos Meses de 2024 e Todo 2025")
-    axs_sarima[1].set_xlabel("Mês")
-    axs_sarima[1].set_ylabel("Quantidade Total")
-    axs_sarima[1].tick_params(axis="x", rotation=45)
-    axs_sarima[1].legend()
-
-    plt.tight_layout()
-    st.pyplot(fig_sarima)
-else:
-    st.error("Não foi possível gerar previsões mensais com SARIMA. Verifique os dados previstos para 2024 e 2025.")
