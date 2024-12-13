@@ -112,18 +112,29 @@ df_grouped_display['Valor total dos procedimentos'] = df_grouped_display['Valor 
 df_grouped_display['Quantidade total de procedimentos'] = df_grouped_display['Quantidade total de procedimentos'].apply(formatar_quantidade)
 st.dataframe(df_grouped_display)
 
-# Divisão entre treino (2019-2023) e teste (2024-2025)
+# Configurar conjunto de treino (2019-2023)
 train = df_grouped[df_grouped['ano_aih'] <= 2023].copy()
 train['ano_aih'] = pd.to_datetime(train['ano_aih'], format='%Y')
+train.set_index('ano_aih', inplace=True)
+
+# Configurar conjunto de teste (2024-2025)
 test = pd.DataFrame({'ano_aih': [2024, 2025]})
+test['ano_aih'] = pd.to_datetime(test['ano_aih'], format='%Y')
+test.set_index('ano_aih', inplace=True)
+
+
 
 # ---------------------------------------------
 # Decomposição da Série Temporal
 # ---------------------------------------------
 
 # Decomposição da Série Temporal
-serie_temporal = train.set_index('ano_aih')['Valor total dos procedimentos']
+serie_temporal = train['Valor total dos procedimentos']
 result = seasonal_decompose(serie_temporal, model='additive', period=1, extrapolate_trend='freq')
+
+# Exibir estrutura de treino para depuração
+st.write("Estrutura do DataFrame de treino (train):", train.head())
+
 
 # Gráficos de decomposição
 st.header("Decomposição da Série Temporal")
@@ -162,36 +173,35 @@ axs[3].set_xticklabels(result.observed.index.year, rotation=45)
 plt.tight_layout()
 st.pyplot(fig)
 
-# ---------------------------------------------
 # Modelo ARIMA para Custos
-# ---------------------------------------------
 st.header("Score e Previsão para Custos com ARIMA")
 
 try:
+    # Ajustar modelo ARIMA
     model_arima_custos = ARIMA(train['Valor total dos procedimentos'], order=(1, 1, 1))
     arima_custos_result = model_arima_custos.fit()
 
-    # Previsões para 2024 e 2025
-    predicted_train_custos = arima_custos_result.predict(start=0, end=len(train) - 1)
-    forecast_arima_custos = arima_custos_result.forecast(steps=2)
+    # Previsões para o período de teste
+    forecast_arima_custos = arima_custos_result.forecast(steps=len(test))
     test['Previsão Custos (ARIMA)'] = forecast_arima_custos.values
 
-    # Cálculo das métricas
+    # Cálculo das métricas de treino
+    predicted_train_custos = arima_custos_result.predict(start=train.index[0], end=train.index[-1])
     mae_custos = mean_absolute_error(train['Valor total dos procedimentos'], predicted_train_custos)
     rmse_custos = calculate_rmse(train['Valor total dos procedimentos'], predicted_train_custos)
     mape_custos = calculate_mape(train['Valor total dos procedimentos'], predicted_train_custos)
     accuracy_custos = calculate_accuracy(train['Valor total dos procedimentos'], predicted_train_custos)
 
     # Exibir métricas
-    st.write(f"MAE: {formatar_real(mae_custos)}")
-    st.write(f"RMSE: {formatar_real(rmse_custos)}")
-    st.write(f"MAPE: {mape_custos:.2f}%")
-    st.write(f"Acurácia: {accuracy_custos:.2f}%")
+    st.write(f"MAE (Treino): {formatar_real(mae_custos)}")
+    st.write(f"RMSE (Treino): {formatar_real(rmse_custos)}")
+    st.write(f"MAPE (Treino): {mape_custos:.2f}%")
+    st.write(f"Acurácia (Treino): {accuracy_custos:.2f}%")
 
-    # Gráfico
+    # Gráfico das previsões
     fig_custos, ax_custos = plt.subplots()
-    ax_custos.plot(train['ano_aih'], train['Valor total dos procedimentos'], label="Treino", color="blue")
-    ax_custos.plot(test['ano_aih'], test['Previsão Custos (ARIMA)'], label="Previsão", color="orange")
+    ax_custos.plot(train.index, train['Valor total dos procedimentos'], label="Treino", color="blue")
+    ax_custos.plot(test.index, test['Previsão Custos (ARIMA)'], label="Previsão", color="orange")
     ax_custos.set_title("Previsão de Custos com ARIMA")
     ax_custos.set_xlabel("Ano")
     ax_custos.set_ylabel("Valor Total (R$)")
@@ -200,36 +210,35 @@ try:
 except Exception as e:
     st.error(f"Erro ao ajustar o modelo ARIMA para custos: {e}")
 
-# ---------------------------------------------
 # Modelo ARIMA para Quantidades
-# ---------------------------------------------
 st.header("Score e Previsão para Quantidades com ARIMA")
 
 try:
+    # Ajustar modelo ARIMA
     model_arima_quantidades = ARIMA(train['Quantidade total de procedimentos'], order=(1, 1, 1))
     arima_quantidades_result = model_arima_quantidades.fit()
 
-    # Previsões para 2024 e 2025
-    predicted_train_quantidades = arima_quantidades_result.predict(start=0, end=len(train) - 1)
-    forecast_arima_quantidades = arima_quantidades_result.forecast(steps=2)
+    # Previsões para o período de teste
+    forecast_arima_quantidades = arima_quantidades_result.forecast(steps=len(test))
     test['Previsão Quantidades (ARIMA)'] = forecast_arima_quantidades.values
 
-    # Cálculo das métricas
+    # Cálculo das métricas de treino
+    predicted_train_quantidades = arima_quantidades_result.predict(start=train.index[0], end=train.index[-1])
     mae_quantidades = mean_absolute_error(train['Quantidade total de procedimentos'], predicted_train_quantidades)
     rmse_quantidades = calculate_rmse(train['Quantidade total de procedimentos'], predicted_train_quantidades)
     mape_quantidades = calculate_mape(train['Quantidade total de procedimentos'], predicted_train_quantidades)
     accuracy_quantidades = calculate_accuracy(train['Quantidade total de procedimentos'], predicted_train_quantidades)
 
     # Exibir métricas
-    st.write(f"MAE: {formatar_quantidade(mae_quantidades)}")
-    st.write(f"RMSE: {formatar_quantidade(rmse_quantidades)}")
-    st.write(f"MAPE: {mape_quantidades:.2f}%")
-    st.write(f"Acurácia: {accuracy_quantidades:.2f}%")
+    st.write(f"MAE (Treino): {formatar_quantidade(mae_quantidades)}")
+    st.write(f"RMSE (Treino): {formatar_quantidade(rmse_quantidades)}")
+    st.write(f"MAPE (Treino): {mape_quantidades:.2f}%")
+    st.write(f"Acurácia (Treino): {accuracy_quantidades:.2f}%")
 
-    # Gráfico
+    # Gráfico das previsões
     fig_quantidades, ax_quantidades = plt.subplots()
-    ax_quantidades.plot(train['ano_aih'], train['Quantidade total de procedimentos'], label="Treino", color="blue")
-    ax_quantidades.plot(test['ano_aih'], test['Previsão Quantidades (ARIMA)'], label="Previsão", color="green")
+    ax_quantidades.plot(train.index, train['Quantidade total de procedimentos'], label="Treino", color="blue")
+    ax_quantidades.plot(test.index, test['Previsão Quantidades (ARIMA)'], label="Previsão", color="green")
     ax_quantidades.set_title("Previsão de Quantidades com ARIMA")
     ax_quantidades.set_xlabel("Ano")
     ax_quantidades.set_ylabel("Quantidade Total")
@@ -238,9 +247,7 @@ try:
 except Exception as e:
     st.error(f"Erro ao ajustar o modelo ARIMA para quantidades: {e}")
 
-# ---------------------------------------------
 # Comparação de Previsões
-# ---------------------------------------------
 st.header("Resultados das Previsões para 2024 e 2025")
 
 # Formatar os valores para exibição
@@ -250,12 +257,7 @@ test['Previsão Quantidades (ARIMA)'] = test['Previsão Quantidades (ARIMA)'].ap
 # Exibir tabela com previsões
 st.table(test)
 
-# ---------------------------------------------------------------------------------------------------
-
-
-# ---------------------------------------------
 # Modelo SARIMA para Custos
-# ---------------------------------------------
 st.header("Score e Previsão para Custos com SARIMA")
 
 try:
@@ -270,10 +272,11 @@ try:
     sarima_custos_result = model_sarima_custos.fit(disp=False)
 
     # Previsões e métricas para custos
-    predicted_train_sarima_custos = sarima_custos_result.predict(start=0, end=len(train) - 1)
+    predicted_train_sarima_custos = sarima_custos_result.predict(start=train.index[0], end=train.index[-1])
     forecast_sarima_custos = sarima_custos_result.get_forecast(steps=2).predicted_mean
     test['Previsão Custos (SARIMA)'] = forecast_sarima_custos.values
 
+    # Cálculo das métricas
     mae_sarima_custos = mean_absolute_error(train['Valor total dos procedimentos'], predicted_train_sarima_custos)
     rmse_sarima_custos = calculate_rmse(train['Valor total dos procedimentos'], predicted_train_sarima_custos)
     mape_sarima_custos = calculate_mape(train['Valor total dos procedimentos'], predicted_train_sarima_custos)
@@ -287,8 +290,8 @@ try:
 
     # Gráfico para o modelo SARIMA - Custos
     fig_sarima_custos, ax_sarima_custos = plt.subplots()
-    ax_sarima_custos.plot(train['ano_aih'], train['Valor total dos procedimentos'], label="Treino", color="blue")
-    ax_sarima_custos.plot(test['ano_aih'], test['Previsão Custos (SARIMA)'], label="Previsão", color="orange")
+    ax_sarima_custos.plot(train.index, train['Valor total dos procedimentos'], label="Treino", color="blue")
+    ax_sarima_custos.plot(test.index, test['Previsão Custos (SARIMA)'], label="Previsão", color="orange")
     ax_sarima_custos.set_title("Previsão de Custos com SARIMA")
     ax_sarima_custos.set_xlabel("Ano")
     ax_sarima_custos.set_ylabel("Valor Total (R$)")
@@ -297,9 +300,7 @@ try:
 except Exception as e:
     st.error(f"Erro ao ajustar o modelo SARIMA para custos: {e}")
 
-# ---------------------------------------------
 # Modelo SARIMA para Quantidades
-# ---------------------------------------------
 st.header("Score e Previsão para Quantidades com SARIMA")
 
 try:
@@ -313,11 +314,12 @@ try:
     )
     sarima_quantidades_result = model_sarima_quantidades.fit(disp=False)
 
-    # # Previsões e métricas para quantidades
+    # Previsões e métricas para quantidades
     predicted_train_sarima_quantidades = sarima_quantidades_result.predict(start=train.index[0], end=train.index[-1])
     forecast_sarima_quantidades = sarima_quantidades_result.get_forecast(steps=2).predicted_mean
     test['Previsão Quantidades (SARIMA)'] = forecast_sarima_quantidades.values
 
+    # Cálculo das métricas
     mae_sarima_quantidades = mean_absolute_error(train['Quantidade total de procedimentos'], predicted_train_sarima_quantidades)
     rmse_sarima_quantidades = calculate_rmse(train['Quantidade total de procedimentos'], predicted_train_sarima_quantidades)
     mape_sarima_quantidades = calculate_mape(train['Quantidade total de procedimentos'], predicted_train_sarima_quantidades)
@@ -331,8 +333,8 @@ try:
 
     # Gráfico para o modelo SARIMA - Quantidades
     fig_sarima_quantidades, ax_sarima_quantidades = plt.subplots()
-    ax_sarima_quantidades.plot(train['ano_aih'], train['Quantidade total de procedimentos'], label="Treino", color="blue")
-    ax_sarima_quantidades.plot(test['ano_aih'], test['Previsão Quantidades (SARIMA)'], label="Previsão", color="green")
+    ax_sarima_quantidades.plot(train.index, train['Quantidade total de procedimentos'], label="Treino", color="blue")
+    ax_sarima_quantidades.plot(test.index, test['Previsão Quantidades (SARIMA)'], label="Previsão", color="green")
     ax_sarima_quantidades.set_title("Previsão de Quantidades com SARIMA")
     ax_sarima_quantidades.set_xlabel("Ano")
     ax_sarima_quantidades.set_ylabel("Quantidade Total")
@@ -341,15 +343,28 @@ try:
 except Exception as e:
     st.error(f"Erro ao ajustar o modelo SARIMA para quantidades: {e}")
 
-# ---------------------------------------------
+#-------------------------------------------------------------------------
+
 # Comparação de Previsões - ARIMA x SARIMA
-# ---------------------------------------------
 st.header("Comparação de Previsões para 2024 e 2025")
 
-# Comparar previsões ARIMA e SARIMA
-test_display = test.copy()
-test_display['Previsão Custos (SARIMA)'] = test_display['Previsão Custos (SARIMA)'].apply(formatar_real)
-test_display['Previsão Quantidades (SARIMA)'] = test_display['Previsão Quantidades (SARIMA)'].apply(formatar_quantidade)
+# Garantir que as previsões estejam formatadas para exibição
+if 'Previsão Custos (ARIMA)' in test and 'Previsão Quantidades (ARIMA)' in test:
+    test_display = test.copy()
 
-# Exibir tabela com previsões
-st.table(test_display)
+    # Verificar se os valores são numéricos antes de aplicar o formato
+    if pd.api.types.is_numeric_dtype(test['Previsão Custos (ARIMA)']):
+        test_display['Previsão Custos (ARIMA)'] = test['Previsão Custos (ARIMA)'].apply(formatar_real)
+    if pd.api.types.is_numeric_dtype(test['Previsão Custos (SARIMA)']):
+        test_display['Previsão Custos (SARIMA)'] = test['Previsão Custos (SARIMA)'].apply(formatar_real)
+    if pd.api.types.is_numeric_dtype(test['Previsão Quantidades (ARIMA)']):
+        test_display['Previsão Quantidades (ARIMA)'] = test['Previsão Quantidades (ARIMA)'].apply(formatar_quantidade)
+    if pd.api.types.is_numeric_dtype(test['Previsão Quantidades (SARIMA)']):
+        test_display['Previsão Quantidades (SARIMA)'] = test['Previsão Quantidades (SARIMA)'].apply(formatar_quantidade)
+
+    # Exibir a tabela comparativa
+    st.subheader("Tabela Comparativa de Previsões")
+    st.table(test_display)
+else:
+    st.warning("As previsões para ARIMA ou SARIMA não estão disponíveis.")
+
